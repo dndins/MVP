@@ -225,15 +225,15 @@ def para():
     arg.add_argument('--lr', type=float, default=1e-4)
     arg.add_argument('--num_class', type=int, default=1)
     arg.add_argument('--device', type=str, default='cuda:0')
-    arg.add_argument('--root_path', type=str, default='/mnt/data1/zzy/ProjecT/MVP_Project')
-    arg.add_argument('--outside_data_path', type=str, default='/mnt/data1/zzy/Data/Norm_Stable_Vulnerable_Crop_outside_V3')
-    arg.add_argument('--json_file', type=str, default='/Norm_Stable_Vulnerable_Crop_add7.json')
+    arg.add_argument('--root_path', type=str, default='')
+    arg.add_argument('--outside_data_path', type=str, default='')
+    arg.add_argument('--json_file', type=str, default='')
     arg.add_argument('--outside_data_infer', type=bool, default=False)
     
-    arg.add_argument('--test_weight_path', type=str, default= '/mnt/data1/zzy/ProjecT/MVP_Project/log/ResNet18_MVP_sigmod_wo_CL_crop/weight/best.pth')
+    arg.add_argument('--test_weight_path', type=str, default= '')
     opt = arg.parse_args()
 
-    opt.save_path = opt.root_path + "/log/" + opt.module + '_MVP_sigmod_wo_CL_crop'
+    opt.save_path = opt.root_path + "/log/" + opt.module + '_MVP'
     os.makedirs(opt.save_path, exist_ok=True)
     opt.weight_path = opt.save_path + '/weight'
     os.makedirs(opt.weight_path, exist_ok=True)
