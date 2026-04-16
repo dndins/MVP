@@ -63,7 +63,7 @@ def main(net, epochs, batch_size, lr, device, weight_path, json_path, root_path,
     device = torch.device(device)
     net.to(device)
     
-    # 损失函数
+    # loss
     criterion_ce = nn.BCEWithLogitsLoss()
     criterion_nce = Sup_InfoNCE()
 
@@ -80,23 +80,19 @@ def main(net, epochs, batch_size, lr, device, weight_path, json_path, root_path,
     valid_d = DataSet(json_path, transform=transform['valid'], target='valid')
     valid_load = DataLoader(valid_d, batch_size=batch_size, shuffle=True, num_workers=1)
 
-    # 初始化bank
+    # init bank
     bank_A = MemoryBank(size=len(train_d), dim=128, class_num=2, device=device)
     bank_B = MemoryBank(size=len(train_d), dim=128, class_num=2, device=device)
     
     bank_A.get_init_memory_bank(data_loader=train_load, device=device, view='A')
     bank_B.get_init_memory_bank(data_loader=train_load, device=device, view='B')
 
-    
-    # 记录训练集的损失 验证集的损失
     loss_train_ce, loss_train_nce, loss_valid_ce, loss_valid_nce = [], [], [], []
 
-    # 记录验证集的精度
     valid_acc_list, valid_auc_list, valid_f1_list = [], [], []
-    # 记录训练集每个类的精度 验证集每个类的精度
+
     valid_per_acc_list = [[], []]
     
-    # 记录最好平均精度和整体精度
     best_auc = 0
     best_acc = 0
     best_score = 0
@@ -108,7 +104,7 @@ def main(net, epochs, batch_size, lr, device, weight_path, json_path, root_path,
         
         for img_A, img_B, labels, ids, _, _ in train_load:
             # print(img_A.shape)
-            # 图像A 图像B 图像标签 图像在Memory Bank的位置
+
             optimizer.zero_grad()
             img_A, img_B, labels, = img_A.to(device), img_B.to(device), labels.to(device)
             img = torch.cat([img_A, img_B], dim=0)
@@ -116,10 +112,8 @@ def main(net, epochs, batch_size, lr, device, weight_path, json_path, root_path,
             va = torch.stack(bank_A.get_class_mean_feature())
             vb = torch.stack(bank_B.get_class_mean_feature())
 
-            # 获得输出结果
             xa, xb, out = net(img, va, vb)
 
-            # # 分别对两个分支做损失 更新bank
             # loss_nce_A= for_and_backward_block(Memory_bank=bank_A, query=xa, labels=labels, ids=ids, criterion_nce=criterion_nce)
             # loss_nce_B= for_and_backward_block(Memory_bank=bank_B, query=xb, labels=labels, ids=ids, criterion_nce=criterion_nce)
             
@@ -148,9 +142,7 @@ def main(net, epochs, batch_size, lr, device, weight_path, json_path, root_path,
         with torch.no_grad():
             net.eval()
             for i, (img_A, img_B, labels, ids, _, _) in enumerate(valid_load):
-                # 图像A 图像B 图像标签 图像在序列的位置
                 img_A, img_B, labels = img_A.to(device), img_B.to(device), labels.to(device)
-                # 输入图像 获得预测向量 
                 img = torch.cat([img_A, img_B], dim=0)
                 
                 va = torch.stack(bank_A.get_class_mean_feature())
@@ -158,7 +150,6 @@ def main(net, epochs, batch_size, lr, device, weight_path, json_path, root_path,
                 
                 xa, xb, prob = net(img, va, vb)
                 
-                # 只计算 不更新
                 # loss_nce_A = for_and_backward_block(Memory_bank=bank_A, query=xa, labels=labels, ids=ids, criterion_nce=criterion_nce, train=False)
                 # loss_nce_B= for_and_backward_block(Memory_bank=bank_B, query=xb, labels=labels, ids=ids, criterion_nce=criterion_nce, train=False)
                 
@@ -170,7 +161,6 @@ def main(net, epochs, batch_size, lr, device, weight_path, json_path, root_path,
                 valid_loss_ce += loss_ce.item()
                 # valid_loss_nce += loss_nce.item()
 
-                # 保留验证结果
                 pred = (prob > 0.5).float()
                 prob_list += prob.cpu().tolist()
                 pred_list += pred.cpu().tolist()
@@ -181,7 +171,6 @@ def main(net, epochs, batch_size, lr, device, weight_path, json_path, root_path,
             loss_valid_ce.append(mean_valid_loss_ce)
             loss_valid_nce.append(mean_valid_loss_nce)
             
-            # 记录验证信息
             tqdm.write(classification_report(label_list, pred_list, labels=None, target_names=None, sample_weight=None, digits=4, output_dict=False))
             report = classification_report(label_list, pred_list, labels=None, target_names=None, sample_weight=None, digits=4, output_dict=False)
             accuracy = accuracy_score(label_list, pred_list)
@@ -200,12 +189,11 @@ def main(net, epochs, batch_size, lr, device, weight_path, json_path, root_path,
             valid_acc_list.append(accuracy)
             valid_f1_list.append(F1_score)
             valid_auc_list.append(AUC)
-            # 记录整体最高精度
+            
             if np.mean(class_acc)> best_acc:
                 best_acc =  np.mean(class_acc)
                 torch.save(net.state_dict(), weight_path + '/best_ACC.pth')
 
-            
             tqdm.write(f"epoch: {epoch}       train loss ce: {mean_train_loss_ce:.3f}       train loss nce: {mean_train_loss_nce:.3f}")
             tqdm.write(f"epoch: {epoch}       valid loss ce: {mean_valid_loss_ce:.3f}       valid loss nce: {mean_valid_loss_nce:.3f}")
             tqdm.write(f"best_acc: {best_acc:.3f}")
@@ -213,7 +201,6 @@ def main(net, epochs, batch_size, lr, device, weight_path, json_path, root_path,
             
             current_score = (np.mean(class_acc) + AUC) /2
 
-            # 记录平均最高精度 当平均精度最大时 保留记录
             if current_score > best_score:
                 best_score = current_score
                 torch.save(net.state_dict(), weight_path + '/best.pth')
@@ -224,8 +211,6 @@ def main(net, epochs, batch_size, lr, device, weight_path, json_path, root_path,
                 torch.save(net.state_dict(), weight_path + '/best_AUC.pth')
                 record_txt(None, root_path, json_path, module, epochs, batch_size, lr, weight_path, report, class_acc, cm, AUC)
 
-
-        # 画图
         save_epoch_curves(root_path, \
                           loss_train_ce, loss_train_nce, \
                           loss_valid_ce, loss_valid_nce, \
@@ -245,11 +230,9 @@ def para():
     arg.add_argument('--json_file', type=str, default='/Norm_Stable_Vulnerable_Crop_add7.json')
     arg.add_argument('--outside_data_infer', type=bool, default=False)
     
-    # 测试权重
     arg.add_argument('--test_weight_path', type=str, default= '/mnt/data1/zzy/ProjecT/MVP_Project/log/ResNet18_MVP_sigmod_wo_CL_crop/weight/best.pth')
     opt = arg.parse_args()
 
-    # 保存信息文件夹
     opt.save_path = opt.root_path + "/log/" + opt.module + '_MVP_sigmod_wo_CL_crop'
     os.makedirs(opt.save_path, exist_ok=True)
     opt.weight_path = opt.save_path + '/weight'
