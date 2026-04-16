@@ -121,9 +121,9 @@ def get_backbone():
 
     for k in weight.keys():
         if k in weight:
-            print(f"{k}: 加载成功")
+            print(f"{k}: load success")
         else:
-            print(f"{k}: 使用默认初始化")
+            print(f"{k}: init random")
     
     return net
 
@@ -183,7 +183,7 @@ class NetWork(nn.Module):
         
         x_layer4_out = self.avgpool(x_layer4_out.permute(0, 2, 1)).squeeze(-1)
 
-        xa, xb = x[:x.size(0)//2], x[x.size(0)//2:] # 最后一层特征用来对比学习
+        xa, xb = x[:x.size(0)//2], x[x.size(0)//2:]
 
         x = torch.cat([x_layer4_out[:x_layer4_out.size(0)//2], x_layer4_out[x_layer4_out.size(0)//2:]], dim=-1)  
 
@@ -204,19 +204,11 @@ class NetWork(nn.Module):
 # -------------------------------------VIT----------------------------------------------------
 class TransformerLayer(nn.Module):
     def __init__(self, embed_dim=128, num_heads=8, ff_dim=128, dropout=0.1):
-        """
-        Transformer Layer
-        :param embed_dim:  输入特征维度 (d_model)
-        :param num_heads:  多头注意力的头数
-        :param ff_dim:  前馈网络的隐藏层维度
-        :param dropout:  Dropout 概率
-        """
-        super(TransformerLayer, self).__init__()
 
-        # 多头自注意力机制
+        super(TransformerLayer, self).__init__()
         self.attention_A = nn.MultiheadAttention(embed_dim, num_heads, dropout=dropout, batch_first=True)
         self.attention_B = nn.MultiheadAttention(embed_dim, num_heads, dropout=dropout, batch_first=True)
-        # 前馈网络 (FFN)
+
         self.ffn = nn.Sequential(
             nn.Linear(embed_dim, ff_dim),
             nn.ReLU(),
@@ -230,18 +222,14 @@ class TransformerLayer(nn.Module):
         self.dropout2 = nn.Dropout(dropout)
 
     def forward(self, x):
-        """
-        前向传播
-        :param x: [x1, x2, x3, x4] xi形状 (batch_size, channel, h, w)
-        :return: 经过 Transformer Layer 处理后的输出
-        """
+
         output_list = []
         
         for layer in x:
             layer = layer.view(layer.size(0), layer.size(1), -1)
             layer_A, layer_B = layer[:layer.size(0)//2].permute(0, 2, 1), layer[layer.size(0)//2:].permute(0, 2, 1) # [B, HW, C]
-            attn_output_A, _ = self.attention_A(layer_A, layer_A, layer_A)  # Q, K, V 相同 # [B, HW, C]
-            attn_output_B, _ = self.attention_B(layer_B, layer_B, layer_B)  # Q, K, V 相同 # [B, HW, C]
+            attn_output_A, _ = self.attention_A(layer_A, layer_A, layer_A) 
+            attn_output_B, _ = self.attention_B(layer_B, layer_B, layer_B) 
 
             attn_output = torch.maximum(attn_output_A, attn_output_B)
             
@@ -254,25 +242,14 @@ class TransformerLayer(nn.Module):
     
 class TransformerEncoder(nn.Module):
     def __init__(self, num_layers=6, embed_dim=128, num_heads=8, ff_dim=128, dropout=0.1):
-        """
-        多层 Transformer Encoder
-        :param num_layers:  Transformer 层的数量
-        :param embed_dim:   输入特征维度 (d_model)
-        :param num_heads:   多头注意力的头数
-        :param ff_dim:      前馈网络的隐藏层维度
-        :param dropout:     Dropout 概率
-        """
+
         super(TransformerEncoder, self).__init__()
         self.layers = nn.ModuleList([
             TransformerLayer(embed_dim, num_heads, ff_dim, dropout) for _ in range(num_layers)
         ])
     
     def forward(self, x):
-        """
-        前向传播
-        :param x: 输入张量，形状 (batch_size, seq_len, embed_dim)
-        :return: 经过多层 Transformer 处理后的输出
-        """
+
         for layer in self.layers:
             x = layer(x)
         return x
