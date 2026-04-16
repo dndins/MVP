@@ -21,24 +21,11 @@ transform = transforms.Compose([
                                 ])
 
 def calculate_metrics(y_true, y_pred):
-    """
-    计算 Sensitivity, Specificity, F1, PPV, NPV
 
-    参数:
-    y_true: list 或 np.array (0/1)
-    y_pred: list 或 np.array (0/1)
-
-    返回:
-    dict
-    """
-
-    # 混淆矩阵: [[TN, FP], [FN, TP]]
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
 
-    # 防止除0
     eps = 1e-8
 
-    # 指标计算
     sensitivity = tp / (tp + fn + eps)   # Recall
     specificity = tn / (tn + fp + eps)
     ppv = tp / (tp + fp + eps)           # Precision
@@ -64,7 +51,7 @@ def infer(net, device, json_path, root_path, module, weight_path, opt):
     valid_d = DataSet(json_path, transform=transform, target="test", outside_data_path=opt.outside_data_path, outside_data_infer=opt.outside_data_infer)
     valid_load = DataLoader(valid_d, batch_size=1, shuffle=True, num_workers=1)
     
-    torch.cuda.synchronize()  # 等待GPU计算完成（很重要）
+    torch.cuda.synchronize()  
 
     pred_list = []
     feature_list = []
@@ -90,7 +77,6 @@ def infer(net, device, json_path, root_path, module, weight_path, opt):
             prob = torch.sigmoid(prob.squeeze(1))
             pred = (prob > 0.5).float()
 
-            # 保留错误样本信息
             if pred != labels:
                 incorreect_dict[name[0]] = [
                     int(pred + 1),
@@ -99,18 +85,15 @@ def infer(net, device, json_path, root_path, module, weight_path, opt):
 
             feature_list.append(mid)
 
-            # 存真实标签
             label_list += labels.cpu().tolist()
             pred_list += pred.cpu().tolist()
-            # 存概率
-            prob_list.append(prob.cpu().detach().numpy())  # 先存成数组形式
+
+            prob_list.append(prob.cpu().detach().numpy())
 
             pred_dict[name[0].split('/')[-1]] = {"gt":int(labels[0].cpu().numpy()),
                                   "pred":int(pred.cpu().numpy()),
                                   "score":[float(prob[0].cpu().numpy())]}
 
-             # 预测保存csv name, GT, pred prob 四个
-            # 👉 逐样本保存
             for j in range(len(name)):
                 csv_data.append({
                     "Name": name[j].split('/')[-1],
@@ -126,7 +109,6 @@ def infer(net, device, json_path, root_path, module, weight_path, opt):
         df.to_csv(csv_path, index=False)
         print(f"\nSaved CSV: {csv_path}")
 
-        # T-sne 可视化
         plot_tsne_visualization(feature_list, label_list, root_path)
 
         auc = roc_auc_score(label_list, prob_list, multi_class='ovr', average='macro')
@@ -140,14 +122,13 @@ def infer(net, device, json_path, root_path, module, weight_path, opt):
         
         metrics = calculate_metrics(label_list, pred_list)
 
-        print("评估指标:")
         for metric, value in metrics.items():
             if metric in ['TP', 'TN', 'FP', 'FN']:
                 print(f"{metric}: {value}")
             else:
                 print(f"{metric}: {value:.4f}")
         print(confusion_matrix(label_list, pred_list))
-        # 记录验证信息
+
         tqdm.write(classification_report(label_list, pred_list, labels=None, target_names=None, sample_weight=None, digits=4, output_dict=False))
         report = classification_report(label_list, pred_list, labels=None, target_names=None, sample_weight=None, digits=4, output_dict=False)
         
@@ -160,7 +141,7 @@ def infer(net, device, json_path, root_path, module, weight_path, opt):
         
     
 if __name__ == '__main__':
-    set_seed(42)  # 42是示例种子，可以选择任何整数
+    set_seed(42)  
     opt = para()
 
     net = NetWork(num_class=opt.num_class)
